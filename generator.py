@@ -10,32 +10,46 @@ from keras.optimizers import Adam
 import json
 
 
-csv_file = 'data/driving_log.csv'
-driving_log = pd.read_csv(csv_file, index_col = False, sep = '\,\s*')
+csv_file = 'data/driving_log.csv', engine = 'python')
 t1, validation = train_test_split(driving_log, test_size = 0.2)
 train, test = train_test_split(t1, test_size = 0.25)
-
-direct = train[train['steering'] == 0]
-turns = train[train['steering'] != 0]
-direct = direct.sample(frac=0.5).reset_index(drop = True)
+# filter samples which are straight +- epsilon
+# avoid bias toward no turning
+epsilon = 0.05
+direct = train[(train['steering']>-epsilon) & (train['steering']<epsilon) ]
+turns = train[(train['steering']<=-epsilon) | (train['steering']>=epsilon) ]
+#reduce number of drirect samples to 1/2 of turns
+direct_reduction = len(turns)/(2*len(direct))
+direct = direct.sample(frac=direct_reduction).reset_index(drop = True)
 balanced_train = pd.concat([direct, turns])
 balanced_train = balanced_train.sample(frac=1).reset_index(drop = True)
 img_path = 'data/'
 
 def preprocess_img(img, col=128, row=64):
+    # Random brightness set
+    # as proposed by ViVek Yadav
+    # https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.yh93soib0
     ret = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     random_bright = .25+np.random.uniform()
     ret[:,:,2] =ret[:,:,2]*random_bright
     ret = cv2.cvtColor(ret,cv2.COLOR_HSV2RGB)
-    ret = cv2.resize(ret,(col, row), interpolation=cv2.INTER_AREA)
+# Cropping - horizon 50 pixels, hood 30 pixels
+# No cropping on x-axis
+    y_from = 50
+    y_to = ret.shape[1]-30
+    ret = ret[y_from:y_to]
+
+    #ret = cv2.resize(ret,(col, row), interpolation=cv2.INTER_AREA)
     return(ret)
+
+
 
 def gen_train(train_set, batch_size = 4):
     col = 128
     row = 64
     X_train = np.zeros((batch_size, row, col, 3))
     y_train = np.zeros(batch_size)
-    imgs_per_line = 2
+    imgs_per_line = 4
     line = 0
     while 1:
         for i in range(int(batch_size/imgs_per_line)):
