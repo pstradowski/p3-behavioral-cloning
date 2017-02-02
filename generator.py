@@ -10,22 +10,23 @@ from keras.optimizers import Adam
 import json
 
 
-csv_file = 'data/driving_log.csv', engine = 'python')
+csv_file = 'data/driving_log.csv'
+driving_log = pd.read_csv(csv_file, index_col = False, sep = '\,\s*', engine = 'python')
 t1, validation = train_test_split(driving_log, test_size = 0.2)
 train, test = train_test_split(t1, test_size = 0.25)
-# filter samples which are straight +- epsilon
-# avoid bias toward no turning
-epsilon = 0.05
+
+# Split train dataset into direct left and right turns
+epsilon = 0.15
 direct = train[(train['steering']>-epsilon) & (train['steering']<epsilon) ]
-turns = train[(train['steering']<=-epsilon) | (train['steering']>=epsilon) ]
-#reduce number of drirect samples to 1/2 of turns
-direct_reduction = len(turns)/(2*len(direct))
-direct = direct.sample(frac=direct_reduction).reset_index(drop = True)
-balanced_train = pd.concat([direct, turns])
-balanced_train = balanced_train.sample(frac=1).reset_index(drop = True)
+turn_l = train[(train['steering']<=-epsilon)]
+turn_r = train[(train['steering']>=epsilon)]
+
 img_path = 'data/'
 
-def preprocess_img(img, col=128, row=64):
+img_col = 64
+img_row = 64
+
+def preprocess(img, steering):
     # Random brightness set
     # as proposed by ViVek Yadav
     # https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.yh93soib0
@@ -33,52 +34,77 @@ def preprocess_img(img, col=128, row=64):
     random_bright = .25+np.random.uniform()
     ret[:,:,2] =ret[:,:,2]*random_bright
     ret = cv2.cvtColor(ret,cv2.COLOR_HSV2RGB)
-# Cropping - horizon 50 pixels, hood 30 pixels
-# No cropping on x-axis
+    # Random flip
+    ind_flip = np.random.randint(2)
+    if ind_flip==0:
+        ret = cv2.flip(ret,1)
+        steering = -steering
+        
+    # Jitter by Vivek Yadaw
+    rows, cols, _ = ret.shape
+    transRange = 100
+    numPixels = 10
+    valPixels = 0.4
+    transX = transRange * np.random.uniform() - transRange/2
+    steering = steering + transX/transRange * 2 * valPixels
+    transY = numPixels * np.random.uniform() - numPixels/2
+    transMat = np.float32([[1, 0, transX], [0, 1, transY]])
+    ret = cv2.warpAffine(ret, transMat, (cols, rows))
+    
+    # Cropping - horizon 50 pixels, hood 30 pixels
+    # No cropping on x-axis
     y_from = 50
     y_to = ret.shape[1]-30
     ret = ret[y_from:y_to]
 
-    #ret = cv2.resize(ret,(col, row), interpolation=cv2.INTER_AREA)
-    return(ret)
+    ret = cv2.resize(ret,(img_col, img_row), interpolation=cv2.INTER_AREA)
+    return(ret, steering)
 
 
 
-def gen_train(train_set, batch_size = 4):
-    col = 128
-    row = 64
-    X_train = np.zeros((batch_size, row, col, 3))
+def gen_train(turn_l, direct, turn_r, batch_size = 4):
+    X_train = np.zeros((batch_size, img_row, img_col, 3))
     y_train = np.zeros(batch_size)
-    imgs_per_line = 4
     line = 0
     while 1:
-        for i in range(int(batch_size/imgs_per_line)):
-            curr_line = train_set.iloc[line]
-            center = cv2.imread(img_path + curr_line['center'])
-            left = cv2.imread(img_path + curr_line['left'])
-            right = cv2.imread(img_path + curr_line['right'])
-            center = preprocess_img(center)
-            left = preprocess_img(left)
-            right = preprocess_img(right)
-            mirror = cv2.flip(center, 1)
-            steering = curr_line['steering']
-            X_train[i] = center
-            y_train[i] = steering 
-            X_train[i+1] = left
-            y_train[i+1] = steering + 0.25        
-            X_train[i+2] = right
-            y_train[i+2] = steering - 0.25
-            X_train[i+3] = mirror
-            y_train[i+3] = -steering
-            if line < len(train_set) - 1:
-                line +=1
-            else:
-                line = 0
+        for i in range(batch_size):
+            # Choose left, center or right turn
+            dice = np.random.randint(1, 4)
+            if dice == 1:
+                idx = np.random.randint(0, len(turn_l))
+                line = turn_l.iloc[idx]
+            elif dice == 2:
+                idx = np.random.randint(0, len(direct))
+                line = direct.iloc[idx]
+            elif dice == 3:
+                idx = np.random.randint(0, len(turn_r))
+                line = turn_r.iloc[idx]
+            
+            # Choose left, center or right camera - 80% center 
+            # 10% left, 10% right
+            dice = np.random.uniform()
+            y = line['steering']
+            # Steering correction factor for left and right cameras
+            epsilon = 0.15
+            if dice < 0.1:
+                camera = 'left'
+                y += epsilon
+            elif (dice >= 0.1) & (dice < 0.9):
+                camera = 'center'
+            elif dice >= 0.9:
+                camera = 'right'
+                y -= epsilon
+
+            X = cv2.imread(img_path + line[camera])
+            y = line['steering']
+            X, y = preprocess(X, y)
+            X_train[i] = X
+            y_train[i] = y  
+
         yield(X_train, y_train)
 
-def gen_valid(val_set, batch_size = 4,
-    col=128, row=64):
-    X_valid = np.zeros((batch_size, row, col, 3))
+def gen_valid(val_set, batch_size = 4):
+    X_valid = np.zeros((batch_size, img_row, img_col, 3))
     y_valid = np.zeros(batch_size)
     line = 0
     while 1:
@@ -86,7 +112,7 @@ def gen_valid(val_set, batch_size = 4,
             curr_line = val_set.iloc[line]
             img = cv2.imread(img_path + curr_line['center'])
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            X_valid[i] = cv2.resize(img, (col, row), interpolation=cv2.INTER_AREA)
+            X_valid[i] = cv2.resize(img, (img_col, img_row), interpolation=cv2.INTER_AREA)
             y_valid[i] = curr_line['steering']
             if line < len(val_set) - 1:
                 line += 1
@@ -96,7 +122,7 @@ def gen_valid(val_set, batch_size = 4,
 
 
 def comma_model(time_len=1):
-    ch, row, col = 3, 64, 128  # camera format
+    ch, row, col = 3, img_row, img_col  # camera format
 
     model = Sequential()
     model.add(Lambda(lambda x: x/127.5 - 1.,
@@ -117,9 +143,9 @@ def comma_model(time_len=1):
     model.compile(optimizer="adam", loss="mse", metrics=['accuracy'])
     return model
 
-def nvidia_model(img_height=64, img_width=128, img_channels=3,
-                       dropout=.4):
-
+def nvidia_model(img_channels=3, dropout=.4):
+    img_height = img_row
+    img_width = img_col
     # build sequential model
     model = Sequential()
 
@@ -163,9 +189,9 @@ def nvidia_model(img_height=64, img_width=128, img_channels=3,
     return model
 
 model = nvidia_model()
-model.fit_generator(gen_train(balanced_train, batch_size = 128),
-samples_per_epoch = len(balanced_train)*4,
-nb_epoch = 5,
+model.fit_generator(gen_train(turn_l, direct, turn_r, batch_size = 128),
+samples_per_epoch = 1024,
+nb_epoch = 3,
 validation_data = gen_valid(validation) ,
 nb_val_samples = len(validation))
 model.save_weights("model.h5", True)
