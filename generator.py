@@ -23,7 +23,7 @@ turn_r = train[(train['steering']>=epsilon)]
 
 img_path = 'data/'
 
-img_col = 64
+img_col = 128
 img_row = 64
 
 def preprocess(img, steering):
@@ -51,10 +51,10 @@ def preprocess(img, steering):
     transMat = np.float32([[1, 0, transX], [0, 1, transY]])
     ret = cv2.warpAffine(ret, transMat, (cols, rows))
     
-    # Cropping - horizon 50 pixels, hood 30 pixels
+    # Cropping - horizon 50 pixels, hood 10 pixels
     # No cropping on x-axis
     y_from = 50
-    y_to = ret.shape[1]-30
+    y_to = ret.shape[1]-10
     ret = ret[y_from:y_to]
 
     ret = cv2.resize(ret,(img_col, img_row), interpolation=cv2.INTER_AREA)
@@ -69,14 +69,14 @@ def gen_train(turn_l, direct, turn_r, batch_size = 4):
     while 1:
         for i in range(batch_size):
             # Choose left, center or right turn
-            dice = np.random.randint(1, 4)
-            if dice == 1:
+            dice = np.random.uniform()
+            if dice < 0.4:
                 idx = np.random.randint(0, len(turn_l))
                 line = turn_l.iloc[idx]
-            elif dice == 2:
+            elif (dice >= 0.4) & (dice < 0.6) :
                 idx = np.random.randint(0, len(direct))
                 line = direct.iloc[idx]
-            elif dice == 3:
+            elif dice > 0.6:
                 idx = np.random.randint(0, len(turn_r))
                 line = turn_r.iloc[idx]
             
@@ -143,7 +143,7 @@ def comma_model(time_len=1):
     model.compile(optimizer="adam", loss="mse", metrics=['accuracy'])
     return model
 
-def nvidia_model(img_channels=3, dropout=.4):
+def nvidia_model(img_channels=3, dropout=.6):
     img_height = img_row
     img_width = img_col
     # build sequential model
@@ -190,8 +190,8 @@ def nvidia_model(img_channels=3, dropout=.4):
 
 model = nvidia_model()
 model.fit_generator(gen_train(turn_l, direct, turn_r, batch_size = 128),
-samples_per_epoch = 1024,
-nb_epoch = 3,
+samples_per_epoch = 40064,
+nb_epoch = 5,
 validation_data = gen_valid(validation) ,
 nb_val_samples = len(validation))
 model.save_weights("model.h5", True)
