@@ -8,10 +8,25 @@ from keras.layers import Dense, Dropout, Flatten, Lambda, ELU
 from keras.layers.convolutional import Convolution2D
 from keras.optimizers import Adam
 import json
+from os import path
 
 
-csv_file = 'data/driving_log.csv'
-driving_log = pd.read_csv(csv_file, index_col = False, sep = '\,\s*', engine = 'python')
+logs = []
+input_dirs=('./data', './mydata')
+col_names = ('center', 'left', 'right', 'steering', 'throttle', 'brake', 'speed')
+
+for dir in input_dirs:
+    csv_file = dir + '/driving_log.csv'
+    log = pd.read_csv(csv_file, index_col = False, 
+        sep = '\,\s*', engine = 'python', names = col_names)
+    for i in ('left', 'center', 'right'):
+        log[i] = log[i].str.rsplit("/", n=1).str[-1].apply(lambda p: path.join(dir+'/IMG', p))
+    for i in ('steering', 'throttle', 'brake', 'speed'):
+        log[i] = log[i].astype(np.float32)
+    logs.append(log)
+driving_log = pd.concat(logs, axis=0, ignore_index=True)
+
+
 t1, validation = train_test_split(driving_log, test_size = 0.2)
 train, test = train_test_split(t1, test_size = 0.25)
 
@@ -95,7 +110,7 @@ def gen_train(turn_l, direct, turn_r, batch_size = 4):
                 camera = 'right'
                 y -= epsilon
 
-            X = cv2.imread(img_path + line[camera])
+            X = cv2.imread(line[camera])
             y = line['steering']
             X, y = preprocess(X, y)
             X_train[i] = X
@@ -110,7 +125,7 @@ def gen_valid(val_set, batch_size = 4):
     while 1:
         for i in range(batch_size):
             curr_line = val_set.iloc[line]
-            img = cv2.imread(img_path + curr_line['center'])
+            img = cv2.imread(curr_line['center'])
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             X_valid[i] = cv2.resize(img, (img_col, img_row), interpolation=cv2.INTER_AREA)
             y_valid[i] = curr_line['steering']
@@ -194,6 +209,7 @@ samples_per_epoch = 40064,
 nb_epoch = 5,
 validation_data = gen_valid(validation) ,
 nb_val_samples = len(validation))
-model.save_weights("model.h5", True)
-with open('model.json', 'w') as outfile:
+model_name='nvidia'
+model.save_weights(model_name+".h5", True)
+with open(model_name+'.json', 'w') as outfile:
 	json.dump(model.to_json(), outfile)
