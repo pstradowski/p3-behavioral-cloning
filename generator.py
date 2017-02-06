@@ -37,7 +37,7 @@ turn_l = train[(train['steering']<=-epsilon)]
 turn_r = train[(train['steering']>=epsilon)]
 
 
-img_col = 128
+img_col = 64
 img_row = 64
 
 def preprocess(img, steering):
@@ -84,13 +84,13 @@ def gen_train(turn_l, direct, turn_r, batch_size = 4):
         for i in range(batch_size):
             # Choose left, center or right turn
             dice = np.random.uniform()
-            if dice < 0.4:
+            if dice < 0.45:
                 idx = np.random.randint(0, len(turn_l))
                 line = turn_l.iloc[idx]
-            elif (dice >= 0.4) & (dice < 0.6) :
+            elif (dice >= 0.45) & (dice < 0.55) :
                 idx = np.random.randint(0, len(direct))
                 line = direct.iloc[idx]
-            elif dice > 0.6:
+            elif dice > 0.55:
                 idx = np.random.randint(0, len(turn_r))
                 line = turn_r.iloc[idx]
             
@@ -99,7 +99,7 @@ def gen_train(turn_l, direct, turn_r, batch_size = 4):
             dice = np.random.uniform()
             y = line['steering']
             # Steering correction factor for left and right cameras
-            epsilon = 0.15
+            epsilon = 0.20
             if dice < 0.1:
                 camera = 'left'
                 y += epsilon
@@ -208,5 +208,5 @@ samples_per_epoch = 40064,
 nb_epoch = 5,
 validation_data = gen_valid(validation) ,
 nb_val_samples = len(validation))
-model_name='nvidia'
-model.save(model_name+".h5")
+model_name='nvidia_side_correction_020_10_proc_direct'
+model.save('models/' + model_name + ".h5")
