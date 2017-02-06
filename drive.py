@@ -13,6 +13,7 @@ from flask import Flask, render_template
 from io import BytesIO
 
 from keras.models import model_from_json
+
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array
 
 # Fix error with Keras and TensorFlow
@@ -65,17 +66,17 @@ def send_control(steering_angle, throttle):
 
 
 if __name__ == '__main__':
-    # parser = argparse.ArgumentParser(description='Remote Driving')
-    # parser.add_argument('model', type=str,
-    # help='Path to model definition json. Model weights should be on the same path.')
-    # args = parser.parse_args()
-    with open('model.json', 'r') as jfile:
+    parser = argparse.ArgumentParser(description='Remote Driving')
+    parser.add_argument('model', type=str,
+    help='Path to model definition json. Model weights should be on the same path.')
+    args = parser.parse_args()
+    with open(args.model, 'r') as jfile:
         model = model_from_json(json.loads(jfile.read()))
 
     model.compile("adam", "mse")
-   # weights_file = args.model.replace('json', 'h5')
-    weights_file = 'model.h5'
+    weights_file = args.model.replace('json', 'h5')
     model.load_weights(weights_file)
+   
     # wrap Flask application with engineio's middleware
     app = socketio.Middleware(sio, app)
 

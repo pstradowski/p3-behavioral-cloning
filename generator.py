@@ -27,8 +27,8 @@ for dir in input_dirs:
 driving_log = pd.concat(logs, axis=0, ignore_index=True)
 
 
-t1, validation = train_test_split(driving_log, test_size = 0.2)
-train, test = train_test_split(t1, test_size = 0.25)
+train, validation = train_test_split(driving_log, test_size = 0.2)
+#train, test = train_test_split(t1, test_size = 0.25)
 
 # Split train dataset into direct left and right turns
 epsilon = 0.15
@@ -36,7 +36,6 @@ direct = train[(train['steering']>-epsilon) & (train['steering']<epsilon) ]
 turn_l = train[(train['steering']<=-epsilon)]
 turn_r = train[(train['steering']>=epsilon)]
 
-img_path = 'data/'
 
 img_col = 128
 img_row = 64
@@ -200,7 +199,7 @@ def nvidia_model(img_channels=3, dropout=.6):
     optimizer = Adam(lr=0.001)
     model.compile(optimizer=optimizer,
                   loss='mse',
-                  metrics=['accuracy'])
+                  metrics=[])
     return model
 
 model = nvidia_model()
@@ -210,6 +209,4 @@ nb_epoch = 5,
 validation_data = gen_valid(validation) ,
 nb_val_samples = len(validation))
 model_name='nvidia'
-model.save_weights(model_name+".h5", True)
-with open(model_name+'.json', 'w') as outfile:
-	json.dump(model.to_json(), outfile)
+model.save(model_name+".h5")
