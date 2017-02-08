@@ -12,7 +12,7 @@ from PIL import ImageOps
 from flask import Flask, render_template
 from io import BytesIO
 
-from keras.models import model_from_json
+from keras.models import load_model
 
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array
 
@@ -30,7 +30,7 @@ prev_image_array = None
 @sio.on('telemetry')
 def telemetry(sid, data):
     row = 64
-    col = 128
+    col = 64
     # The current steering angle of the car
     steering_angle = data["steering_angle"]
     # The current throttle of the car
@@ -70,12 +70,9 @@ if __name__ == '__main__':
     parser.add_argument('model', type=str,
     help='Path to model definition json. Model weights should be on the same path.')
     args = parser.parse_args()
-    with open(args.model, 'r') as jfile:
-        model = model_from_json(json.loads(jfile.read()))
-
+    model = load_model(args.model)
     model.compile("adam", "mse")
-    weights_file = args.model.replace('json', 'h5')
-    model.load_weights(weights_file)
+    
    
     # wrap Flask application with engineio's middleware
     app = socketio.Middleware(sio, app)

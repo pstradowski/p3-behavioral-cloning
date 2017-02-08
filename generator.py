@@ -80,35 +80,31 @@ def gen_train(turn_l, direct, turn_r, batch_size = 4):
     X_train = np.zeros((batch_size, img_row, img_col, 3))
     y_train = np.zeros(batch_size)
     line = 0
+    epsilon = 0.20
     while 1:
         for i in range(batch_size):
+            y = line['steering']
+            camera = 'center'
             # Choose left, center or right turn
             dice = np.random.uniform()
             if dice < 0.45:
                 idx = np.random.randint(0, len(turn_l))
                 line = turn_l.iloc[idx]
+                coin = np.random.randint(0, 2)
+                if coin == 1:
+                    camera = 'left'
+                    y += epsilon
             elif (dice >= 0.45) & (dice < 0.55) :
                 idx = np.random.randint(0, len(direct))
                 line = direct.iloc[idx]
             elif dice > 0.55:
                 idx = np.random.randint(0, len(turn_r))
                 line = turn_r.iloc[idx]
+                coin = np.random.randint(0, 2)
+                if coin == 1:
+                    camera = 'right'
+                    y -= epsilon
             
-            # Choose left, center or right camera - 80% center 
-            # 10% left, 10% right
-            dice = np.random.uniform()
-            y = line['steering']
-            # Steering correction factor for left and right cameras
-            epsilon = 0.20
-            if dice < 0.1:
-                camera = 'left'
-                y += epsilon
-            elif (dice >= 0.1) & (dice < 0.9):
-                camera = 'center'
-            elif dice >= 0.9:
-                camera = 'right'
-                y -= epsilon
-
             X = cv2.imread(line[camera])
             y = line['steering']
             X, y = preprocess(X, y)
