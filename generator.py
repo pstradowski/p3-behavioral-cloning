@@ -9,6 +9,7 @@ from keras.layers.convolutional import Convolution2D
 from keras.optimizers import Adam
 import json
 from os import path
+from keras.callbacks import ModelCheckpoint
 
 
 logs = []
@@ -24,23 +25,46 @@ for dir in input_dirs:
     for i in ('steering', 'throttle', 'brake', 'speed'):
         log[i] = log[i].astype(np.float32)
     logs.append(log)
+
 driving_log = pd.concat(logs, axis=0, ignore_index=True)
 
+def equalize(d_log, bins, bin_max = 200):
+    """ Balance dataset - bin the steering data into nr of bins
+        then sample from each bins no more than bin_max
+        Idea taken from Alex Staravoitau
+        http://navoshta.com/end-to-end-deep-learning/"""
 
+    bin_max = 200
+    start = 0
+    balanced = pd.DataFrame()
+    for end in np.linspace(0, 1, num=bins):  
+        log_range = d_log[(np.absolute(d_log.steering) >= start) & (np.absolute(d_log.steering) < end)]
+        range_n = min(bin_max, log_range.shape[0])
+        if range_n != 0:
+            balanced = pd.concat([balanced, log_range.sample(range_n)])
+        start = end
+    return balanced
+
+driving_log = equalize(driving_log, 500)
 train, validation = train_test_split(driving_log, test_size = 0.2)
 #train, test = train_test_split(t1, test_size = 0.25)
-
-# Split train dataset into direct left and right turns
-epsilon = 0.15
-direct = train[(train['steering']>-epsilon) & (train['steering']<epsilon) ]
-turn_l = train[(train['steering']<=-epsilon)]
-turn_r = train[(train['steering']>=epsilon)]
-
 
 img_col = 64
 img_row = 64
 
-def preprocess(img, steering):
+def preprocess(line, steering):
+    epsilon = 0.5
+    correction = 0.2
+    coin = np.random.randint(0, 2)
+    camera = 'center'
+    if (coin == 1) & (steering < -epsilon):
+        camera = 'left'
+        steering += correction
+    elif (coin == 1) & (steering > epsilon):
+        camera = 'right'
+        steering -= correction
+
+    img = cv2.imread(line[camera])
     # Random brightness set
     # as proposed by ViVek Yadav
     # https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.yh93soib0
@@ -80,34 +104,15 @@ def get_line(lines):
     y = line['steering']
     return line, y
 
-def gen_train(turn_l, direct, turn_r, batch_size = 4):
+def gen_train(train, batch_size = 4):
     X_train = np.zeros((batch_size, img_row, img_col, 3))
     y_train = np.zeros(batch_size)
-    epsilon = 0.20
     while 1:
         for i in range(batch_size):
-            # Choose left, center or right turn
-            dice = np.random.uniform()
-            camera = 'center'
-            if dice < 0.45:
-                line, y = get_line(turn_l)
-                coin = np.random.randint(0, 2)
-                if coin == 1:
-                    camera = 'left'
-                    y += epsilon
-            elif (dice >= 0.45) & (dice < 0.55) :
-                line, y = get_line(direct)
-            elif dice > 0.55:
-                line, y = get_line(turn_r)
-                coin = np.random.randint(0, 2)
-                if coin == 1:
-                    camera = 'right'
-                    y -= epsilon
-            
-            X = cv2.imread(line[camera])
-            X, y = preprocess(X, y)
+            line, y = get_line(train)
+            X, y = preprocess(line, y)
             X_train[i] = X
-            y_train[i] = y  
+            y_train[i] = y
 
         yield(X_train, y_train)
 
@@ -195,12 +200,40 @@ def nvidia_model(img_channels=3, dropout=.6):
                   loss='mse',
                   metrics=[])
     return model
+def generator3(turn_l, direct, turn_r):
+    X_train = np.zeros((3, img_row, img_col, 3))
+    y_train = np.zeros(3)  
+    X = cv2.imread(turn_l[0]['center'])
+    y = turn_l[0]['steering']
+    X, y = preprocess(X, y)
+    X_train[0] = X
+    y_train[0] = y
+
+    X = cv2.imread(direct[0]['center'])
+    y = direct[0]['steering']
+    X, y = preprocess(X, y)
+    X_train[1] = X
+    y_train[1] = y
+    
+    X = cv2.imread(turn_r[0]['center'])
+    y = turn_r[0]['steering']
+    X, y = preprocess(X, y)
+    X_train[2] = X
+    y_train[2] = y
+    while 1:
+        yield(X_train, y_train)
 
 model = nvidia_model()
-model.fit_generator(gen_train(turn_l, direct, turn_r, batch_size = 128),
+model_name='side_correction_020_10_proc_direct'
+checkpointer =  ModelCheckpoint(filepath= 'models/' + 
+    model_name + "{epoch:02d}-{val_loss:.2f}.hdf5", 
+    verbose=1, save_best_only=True)
+
+model.fit_generator(gen_train(train, batch_size = 128),
 samples_per_epoch = 40064,
 nb_epoch = 5,
 validation_data = gen_valid(validation) ,
-nb_val_samples = len(validation))
-model_name='nvidia_side_correction_020_10_proc_direct'
+nb_val_samples = len(validation),
+callbacks=[checkpointer])
+
 model.save('models/' + model_name + ".h5")
