@@ -53,7 +53,7 @@ img_col = 64
 img_row = 64
 
 def preprocess(line, steering):
-    epsilon = 0.5
+    epsilon = 0.05
     correction = 0.2
     coin = np.random.randint(0, 2)
     camera = 'center'
@@ -91,7 +91,7 @@ def preprocess(line, steering):
     
     # Cropping - horizon 50 pixels, hood 10 pixels
     # No cropping on x-axis
-    y_from = 50
+    y_from = 40
     y_to = ret.shape[1]-10
     ret = ret[y_from:y_to]
 
@@ -195,12 +195,12 @@ def nvidia_model(img_channels=3, dropout=.6):
     # logit output - steering angle
     model.add(Dense(1, activation='elu', name='Out'))
 
-    optimizer = Adam(lr=0.001)
+    optimizer = Adam(lr=0.0001)
     model.compile(optimizer=optimizer,
                   loss='mse',
                   metrics=[])
     return model
-def generator3(turn_l, direct, turn_r):
+def generator3(driving_log):
     X_train = np.zeros((3, img_row, img_col, 3))
     y_train = np.zeros(3)  
     X = cv2.imread(turn_l[0]['center'])
@@ -224,7 +224,7 @@ def generator3(turn_l, direct, turn_r):
         yield(X_train, y_train)
 
 model = nvidia_model()
-model_name='side_correction_020_10_proc_direct'
+model_name='equalized_0.05'
 checkpointer =  ModelCheckpoint(filepath= 'models/' + 
     model_name + "{epoch:02d}-{val_loss:.2f}.hdf5", 
     verbose=1, save_best_only=True)
@@ -236,4 +236,4 @@ validation_data = gen_valid(validation) ,
 nb_val_samples = len(validation),
 callbacks=[checkpointer])
 
-model.save('models/' + model_name + ".h5")
+model.save('models/' + model_name + ".hdf5")
