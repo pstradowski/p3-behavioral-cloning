@@ -13,7 +13,7 @@ from keras.callbacks import ModelCheckpoint
 
 
 logs = []
-input_dirs=('./data', './mydata')
+input_dirs=['./data']
 col_names = ('center', 'left', 'right', 'steering', 'throttle', 'brake', 'speed')
 
 for dir in input_dirs:
@@ -195,10 +195,8 @@ def nvidia_model(img_channels=3, dropout=.6):
     # logit output - steering angle
     model.add(Dense(1, activation='elu', name='Out'))
 
-    optimizer = Adam(lr=0.0001)
-    model.compile(optimizer=optimizer,
-                  loss='mse',
-                  metrics=[])
+    optimizer = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    model.compile(optimizer=optimizer, loss='mse')
     return model
 def generator3(driving_log):
     X_train = np.zeros((3, img_row, img_col, 3))
@@ -224,14 +222,14 @@ def generator3(driving_log):
         yield(X_train, y_train)
 
 model = nvidia_model()
-model_name='equalized_0.05'
+model_name='awryk'
 checkpointer =  ModelCheckpoint(filepath= 'models/' + 
     model_name + "{epoch:02d}-{val_loss:.2f}.hdf5", 
     verbose=1, save_best_only=True)
 
 model.fit_generator(gen_train(train, batch_size = 128),
 samples_per_epoch = 40064,
-nb_epoch = 5,
+nb_epoch = 16,
 validation_data = gen_valid(validation) ,
 nb_val_samples = len(validation),
 callbacks=[checkpointer])
