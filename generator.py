@@ -45,8 +45,10 @@ def equalize(d_log, bins, bin_max = 200):
         start = end
     return balanced
 
-driving_log = equalize(driving_log, 500)
-train, validation = train_test_split(driving_log, test_size = 0.2)
+validation = equalize(driving_log, 500)
+train = driving_log
+
+#train, validation = train_test_split(driving_log, test_size = 0.2)
 #train, test = train_test_split(t1, test_size = 0.25)
 
 img_col = 64
@@ -98,25 +100,26 @@ def preprocess(line, steering):
     ret = cv2.resize(ret,(img_col, img_row), interpolation=cv2.INTER_AREA)
     return(ret, steering)
 
-def get_line(lines):
-    idx = np.random.randint(0, len(lines))
-    line = lines.iloc[idx]
-    y = line['steering']
-    return line, y
 
 def gen_train(train, batch_size = 4):
+    train = train.assign(bin = pd.Series(pd.cut(train['steering'], 180, labels = False) ))
+    full_bins = np.unique(train['bin'])
     X_train = np.zeros((batch_size, img_row, img_col, 3))
     y_train = np.zeros(batch_size)
     while 1:
         for i in range(batch_size):
-            line, y = get_line(train)
+            selected_bin = full_bins[np.random.randint(len(full_bins))]
+            bin_lines = train[train.bin == selected_bin]
+            idx = np.random.randint(len(bin_lines))
+            line = bin_lines.iloc[idx]
+            y = line['steering']
             X, y = preprocess(line, y)
             X_train[i] = X
             y_train[i] = y
 
         yield(X_train, y_train)
 
-def gen_valid(val_set, batch_size = 4):
+def gen_valid(val_set, batch_size = 1):
     X_valid = np.zeros((batch_size, img_row, img_col, 3))
     y_valid = np.zeros(batch_size)
     line = 0
@@ -231,7 +234,7 @@ checkpointer =  ModelCheckpoint(filepath= 'models/' +
 
 model.fit_generator(gen_train(train, batch_size = 128),
 samples_per_epoch = 40064,
-nb_epoch = 5,
+nb_epoch = 20,
 validation_data = gen_valid(validation) ,
 nb_val_samples = len(validation),
 callbacks=[checkpointer])
