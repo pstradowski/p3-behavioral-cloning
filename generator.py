@@ -100,6 +100,11 @@ def preprocess(line, steering):
     ret = cv2.resize(ret,(img_col, img_row), interpolation=cv2.INTER_AREA)
     return(ret, steering)
 
+def get_line(lines):
+    idx = np.random.randint(0, len(lines))
+    line = lines.iloc[idx]
+    y = line['steering']
+    return line, y
 
 def gen_train(train, batch_size = 4):
     train = train.assign(bin = pd.Series(pd.cut(train['steering'], 180, labels = False) ))
@@ -198,10 +203,8 @@ def nvidia_model(img_channels=3, dropout=.6):
     # logit output - steering angle
     model.add(Dense(1, activation='elu', name='Out'))
 
-    optimizer = Adam(lr=0.0001)
-    model.compile(optimizer=optimizer,
-                  loss='mse',
-                  metrics=[])
+    optimizer = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    model.compile(optimizer=optimizer, loss='mse')
     return model
 def generator3(driving_log):
     X_train = np.zeros((3, img_row, img_col, 3))
