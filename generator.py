@@ -13,7 +13,7 @@ from keras.callbacks import ModelCheckpoint
 
 
 logs = []
-input_dirs=('./data', './mydata')
+input_dirs=['./data']
 col_names = ('center', 'left', 'right', 'steering', 'throttle', 'brake', 'speed')
 
 for dir in input_dirs:
@@ -45,24 +45,22 @@ def equalize(d_log, bins, bin_max = 200):
         start = end
     return balanced
 
-validation = equalize(driving_log, 500)
-train = driving_log
+nonzero = driving_log[driving_log.steering != 0]
 
-#train, validation = train_test_split(driving_log, test_size = 0.2)
+train, validation = train_test_split(nonzero, test_size = 0.2)
 #train, test = train_test_split(t1, test_size = 0.25)
 
 img_col = 64
 img_row = 64
 
 def preprocess(line, steering):
-    epsilon = 0.05
-    correction = 0.2
-    coin = np.random.randint(0, 2)
+    correction = 0.25
+    coin = np.random.randint(0, 3)
     camera = 'center'
-    if (coin == 1) & (steering < -epsilon):
+    if coin == 1: 
         camera = 'left'
         steering += correction
-    elif (coin == 1) & (steering > epsilon):
+    elif coin == 2:
         camera = 'right'
         steering -= correction
 
@@ -230,13 +228,13 @@ def generator3(driving_log):
         yield(X_train, y_train)
 
 model = nvidia_model()
-model_name='equalized_0.05'
+model_name='nonzero_udacity'
 checkpointer =  ModelCheckpoint(filepath= 'models/' + 
     model_name + "{epoch:02d}-{val_loss:.2f}.hdf5", 
     verbose=1, save_best_only=True)
 
 model.fit_generator(gen_train(train, batch_size = 128),
-samples_per_epoch = 40064,
+samples_per_epoch = 20224,
 nb_epoch = 20,
 validation_data = gen_valid(validation) ,
 nb_val_samples = len(validation),
