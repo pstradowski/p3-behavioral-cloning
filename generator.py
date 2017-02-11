@@ -28,23 +28,6 @@ for dir in input_dirs:
 
 driving_log = pd.concat(logs, axis=0, ignore_index=True)
 
-def equalize(d_log, bins, bin_max = 200):
-    """ Balance dataset - bin the steering data into nr of bins
-        then sample from each bins no more than bin_max
-        Idea taken from Alex Staravoitau
-        http://navoshta.com/end-to-end-deep-learning/"""
-
-    bin_max = 200
-    start = 0
-    balanced = pd.DataFrame()
-    for end in np.linspace(0, 1, num=bins):  
-        log_range = d_log[(np.absolute(d_log.steering) >= start) & (np.absolute(d_log.steering) < end)]
-        range_n = min(bin_max, log_range.shape[0])
-        if range_n != 0:
-            balanced = pd.concat([balanced, log_range.sample(range_n)])
-        start = end
-    return balanced
-
 nonzero = driving_log[driving_log.steering != 0]
 
 train, validation = train_test_split(nonzero, test_size = 0.2)
@@ -54,7 +37,7 @@ img_col = 64
 img_row = 64
 
 def preprocess(line, steering):
-    correction = 0.25
+    correction = 0.15
     coin = np.random.randint(0, 3)
     camera = 'center'
     if coin == 1: 
@@ -80,7 +63,7 @@ def preprocess(line, steering):
         
     # Jitter by Vivek Yadaw
     rows, cols, _ = ret.shape
-    transRange = 100
+    transRange = 150
     numPixels = 10
     valPixels = 0.4
     transX = transRange * np.random.uniform() - transRange/2
@@ -97,12 +80,6 @@ def preprocess(line, steering):
 
     ret = cv2.resize(ret,(img_col, img_row), interpolation=cv2.INTER_AREA)
     return(ret, steering)
-
-def get_line(lines):
-    idx = np.random.randint(0, len(lines))
-    line = lines.iloc[idx]
-    y = line['steering']
-    return line, y
 
 def gen_train(train, batch_size = 4):
     train = train.assign(bin = pd.Series(pd.cut(train['steering'], 180, labels = False) ))
@@ -162,7 +139,7 @@ def comma_model(time_len=1):
     model.compile(optimizer="adam", loss="mse", metrics=['accuracy'])
     return model
 
-def nvidia_model(img_channels=3, dropout=.6):
+def nvidia_model(img_channels=3, dropout=.5):
     img_height = img_row
     img_width = img_col
     # build sequential model
@@ -201,31 +178,9 @@ def nvidia_model(img_channels=3, dropout=.6):
     # logit output - steering angle
     model.add(Dense(1, activation='elu', name='Out'))
 
-    optimizer = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    optimizer = Adam(lr=1e-3, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
     model.compile(optimizer=optimizer, loss='mse')
     return model
-def generator3(driving_log):
-    X_train = np.zeros((3, img_row, img_col, 3))
-    y_train = np.zeros(3)  
-    X = cv2.imread(turn_l[0]['center'])
-    y = turn_l[0]['steering']
-    X, y = preprocess(X, y)
-    X_train[0] = X
-    y_train[0] = y
-
-    X = cv2.imread(direct[0]['center'])
-    y = direct[0]['steering']
-    X, y = preprocess(X, y)
-    X_train[1] = X
-    y_train[1] = y
-    
-    X = cv2.imread(turn_r[0]['center'])
-    y = turn_r[0]['steering']
-    X, y = preprocess(X, y)
-    X_train[2] = X
-    y_train[2] = y
-    while 1:
-        yield(X_train, y_train)
 
 model = nvidia_model()
 model_name='nonzero_udacity'
