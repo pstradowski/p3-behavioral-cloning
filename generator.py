@@ -13,7 +13,7 @@ from keras.callbacks import ModelCheckpoint
 
 
 logs = []
-input_dirs=['./data', './mydata']
+input_dirs=['./data']
 col_names = ('center', 'left', 'right', 'steering', 'throttle', 'brake', 'speed')
 
 for dir in input_dirs:
@@ -28,16 +28,14 @@ for dir in input_dirs:
 
 driving_log = pd.concat(logs, axis=0, ignore_index=True)
 
-nonzero = driving_log[driving_log.steering != 0]
-
-train, validation = train_test_split(nonzero, test_size = 0.2)
+train, validation = train_test_split(driving_log, test_size = 0.2)
 #train, test = train_test_split(t1, test_size = 0.25)
 
 img_col = 64
 img_row = 64
 
 def preprocess(line, steering):
-    correction = 0.15
+    correction = 0.25
     coin = np.random.randint(0, 3)
     camera = 'center'
     if coin == 1: 
@@ -72,23 +70,25 @@ def preprocess(line, steering):
     transMat = np.float32([[1, 0, transX], [0, 1, transY]])
     ret = cv2.warpAffine(ret, transMat, (cols, rows))
     
-    # Cropping - horizon 50 pixels, hood 10 pixels
-    # No cropping on x-axis
-    y_from = 40
-    y_to = ret.shape[1]-10
+  #  Cropping - horizon 50 pixels, hood 10 pixels
+ #   No cropping on x-axis
+    y_from = 80
+    y_to = ret.shape[1]-20
     ret = ret[y_from:y_to]
 
     ret = cv2.resize(ret,(img_col, img_row), interpolation=cv2.INTER_AREA)
     return(ret, steering)
 
-def gen_train(train, batch_size = 4):
+def gen_train(train, batch_size=4):
     train = train.assign(bin = pd.Series(pd.cut(train['steering'], 180, labels = False) ))
     full_bins = np.unique(train['bin'])
-    X_train = np.zeros((batch_size, img_row, img_col, 3))
-    y_train = np.zeros(batch_size)
     while 1:
+        X_train = np.zeros((batch_size, img_row, img_col, 3))
+        y_train = np.zeros(batch_size)
         for i in range(batch_size):
-            selected_bin = full_bins[np.random.randint(len(full_bins))]
+            dice = np.random.randint(180)
+            idx = np.searchsorted(full_bins, dice)
+            selected_bin = full_bins[idx]
             bin_lines = train[train.bin == selected_bin]
             idx = np.random.randint(len(bin_lines))
             line = bin_lines.iloc[idx]
@@ -96,7 +96,6 @@ def gen_train(train, batch_size = 4):
             X, y = preprocess(line, y)
             X_train[i] = X
             y_train[i] = y
-
         yield(X_train, y_train)
 
 def gen_valid(val_set, batch_size = 1):
@@ -155,21 +154,21 @@ def nvidia_model(img_channels=3, dropout=.5):
     # logit output - steering angle
     model.add(Dense(1, activation='elu', name='Out'))
 
-    optimizer = Adam(lr=1e-3, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    optimizer = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
     model.compile(optimizer=optimizer, loss='mse')
     return model
+if __name__ == "__main__":
+    model = nvidia_model()
+    model_name='eq_ng_'
+    checkpointer =  ModelCheckpoint(filepath= 'models/' + 
+        model_name + "{epoch:02d}-{val_loss:.2f}.hdf5", 
+        verbose=1, save_best_only=True)
 
-model = nvidia_model()
-model_name='nonzero'
-checkpointer =  ModelCheckpoint(filepath= 'models/' + 
-    model_name + "{epoch:02d}-{val_loss:.2f}.hdf5", 
-    verbose=1, save_best_only=True)
+    model.fit_generator(gen_train(train, batch_size = 128),
+    samples_per_epoch = 8192,
+    nb_epoch = 5,
+    validation_data = gen_valid(validation) ,
+    nb_val_samples = len(validation),
+    callbacks=[checkpointer])
 
-model.fit_generator(gen_train(train, batch_size = 128),
-samples_per_epoch = 20224,
-nb_epoch = 20,
-validation_data = gen_valid(validation) ,
-nb_val_samples = len(validation),
-callbacks=[checkpointer])
-
-model.save('models/' + model_name + ".hdf5")
+    model.save('models/' + model_name + ".hdf5")

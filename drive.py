@@ -42,8 +42,8 @@ def telemetry(sid, data):
     image = Image.open(BytesIO(base64.b64decode(imgString)))
     
     image_array = np.asarray(image)
-    y_from = 40
-    y_to = image_array.shape[1]-10
+    y_from = 80
+    y_to = image_array.shape[1]-20
     image_array = image_array[y_from:y_to]
     image_array = cv2.resize(image_array, (col, row), interpolation=cv2.INTER_AREA)
     transformed_image_array = image_array[None, :, :, :]
