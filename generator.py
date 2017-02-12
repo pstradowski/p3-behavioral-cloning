@@ -13,7 +13,7 @@ from keras.callbacks import ModelCheckpoint
 
 
 logs = []
-input_dirs=['./data']
+input_dirs=['./data', './mydata']
 col_names = ('center', 'left', 'right', 'steering', 'throttle', 'brake', 'speed')
 
 for dir in input_dirs:
@@ -116,29 +116,6 @@ def gen_valid(val_set, batch_size = 1):
                 line = 0
         yield(X_valid, y_valid)
 
-
-def comma_model(time_len=1):
-    ch, row, col = 3, img_row, img_col  # camera format
-
-    model = Sequential()
-    model.add(Lambda(lambda x: x/127.5 - 1.,
-            input_shape=(row, col, ch ),
-            output_shape=(row, col, ch)))
-    model.add(Convolution2D(16, 8, 8, subsample=(4, 4), border_mode="same"))
-    model.add(ELU())
-    model.add(Convolution2D(32, 5, 5, subsample=(2, 2), border_mode="same"))
-    model.add(ELU())
-    model.add(Convolution2D(64, 5, 5, subsample=(2, 2), border_mode="same"))
-    model.add(Flatten())
-    model.add(Dropout(.5))
-    model.add(ELU())
-    model.add(Dense(512))
-    model.add(Dropout(.5))
-    model.add(ELU())
-    model.add(Dense(1))
-    model.compile(optimizer="adam", loss="mse", metrics=['accuracy'])
-    return model
-
 def nvidia_model(img_channels=3, dropout=.5):
     img_height = img_row
     img_width = img_col
@@ -183,7 +160,7 @@ def nvidia_model(img_channels=3, dropout=.5):
     return model
 
 model = nvidia_model()
-model_name='nonzero_udacity'
+model_name='nonzero'
 checkpointer =  ModelCheckpoint(filepath= 'models/' + 
     model_name + "{epoch:02d}-{val_loss:.2f}.hdf5", 
     verbose=1, save_best_only=True)
