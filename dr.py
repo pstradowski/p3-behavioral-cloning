@@ -15,6 +15,8 @@ from io import BytesIO
 from keras.models import load_model
 
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array
+from os import listdir
+from os.path import isfile, join
 
 # Fix error with Keras and TensorFlow
 import tensorflow as tf
@@ -69,11 +71,11 @@ def send_control(steering_angle, throttle):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Remote Driving')
-    parser.add_argument('model', type=str,
-    help='Path to model definition json. Model weights should be on the same path.')
-    args = parser.parse_args()
-    model = load_model(args.model)
+    model_dir = 'models'
+    model_list = [f for f in listdir(model_dir) if isfile(join(model_dir, f))] 
+    best_model = model_dir +'/'+ sorted(model_list)[-1]
+    print("Loading model " + best_model)
+    model = load_model(best_model)
     model.compile("adam", "mse")
     
    
