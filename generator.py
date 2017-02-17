@@ -58,8 +58,8 @@ def preprocess(line, steering):
     # as proposed by ViVek Yadav
     # https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.yh93soib0
     ret = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    random_bright = .25+np.random.uniform()
-    ret[:,:,2] =ret[:,:,2]*random_bright
+    # random_bright = .25+np.random.uniform()
+    # ret[:,:,2] =ret[:,:,2]*random_bright
     ret = cv2.cvtColor(ret,cv2.COLOR_HSV2RGB)
     # Random flip
     ind_flip = np.random.randint(2)
@@ -68,15 +68,15 @@ def preprocess(line, steering):
         steering = -steering
 
     # Jitter by Vivek Yadaw
-    rows, cols, _ = ret.shape
-    transRange = 150
-    numPixels = 10
-    valPixels = 0.4
-    transX = transRange * np.random.uniform() - transRange/2
-    steering = steering + transX/transRange * 2 * valPixels
-    transY = numPixels * np.random.uniform() - numPixels/2
-    transMat = np.float32([[1, 0, transX], [0, 1, transY]])
-    ret = cv2.warpAffine(ret, transMat, (cols, rows))
+    # rows, cols, _ = ret.shape
+    # transRange = 150
+    # numPixels = 10
+    # valPixels = 0.4
+    # transX = transRange * np.random.uniform() - transRange/2
+    # steering = steering + transX/transRange * 2 * valPixels
+    # transY = numPixels * np.random.uniform() - numPixels/2
+    # transMat = np.float32([[1, 0, transX], [0, 1, transY]])
+    # ret = cv2.warpAffine(ret, transMat, (cols, rows))
     
   #  Cropping - horizon 50 pixels, hood 10 pixels
  #   No cropping on x-axis
@@ -148,8 +148,8 @@ class uni_eq:
         return line
 
 class randliner:
-    def __init__(self, dataset, direct_threshold = 0.35):
-        epsilon = 0.1
+    def __init__(self, dataset, direct_threshold = 0.05):
+        epsilon = 0.05
         self.direct = dataset[abs(dataset.steering) < epsilon]
         self.turns = dataset[abs(dataset.steering) > epsilon]
         self.direct_threshold = direct_threshold
@@ -164,7 +164,7 @@ class randliner:
         return line
 
 def gen_train(train, batch_size=4):
-    feeder = eq_vivek(train)
+    feeder = randliner(train)
     while 1:
         X_train = np.zeros((batch_size, img_row, img_col, 3))
         y_train = np.zeros(batch_size)
@@ -178,7 +178,7 @@ def gen_train(train, batch_size=4):
 
 def gen_valid(val_set, batch_size = 1):
     
-    feeder = eq_vivek(val_set)
+    feeder = randliner(val_set)
     while 1:
         X_valid = np.zeros((batch_size, img_row, img_col, 3))
         y_valid = np.zeros(batch_size)
@@ -291,13 +291,13 @@ def nvidia_model(img_channels=3, dropout = 0.6):
     return model
 if __name__ == "__main__":
     model = vivek_model()
-    model_name='vivekfull'
+    model_name='viv_no_aug_ud'
     checkpointer =  ModelCheckpoint(filepath= 'models/' + 
         model_name + "{epoch:02d}-{val_loss:.2f}.hdf5", 
         verbose=1, save_best_only=False)
 
     model.fit_generator(gen_train(train, batch_size = 256),
-    samples_per_epoch = 20224,
+    samples_per_epoch = 8192,
     nb_epoch = 10,
     validation_data = gen_valid(validation) ,
     nb_val_samples = len(validation),
