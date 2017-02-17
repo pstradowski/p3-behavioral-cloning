@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 from matplotlib import pyplot as plt
 import cv2
 from keras.layers import Dense, Dropout, Flatten, Lambda, ELU
-from keras.layers.convolutional import Convolution2D
+from keras.layers import Convolution2D,  MaxPooling2D, Flatten
 from keras.optimizers import Adam
 import json
 from os import path
@@ -20,7 +20,7 @@ def moving_average(a, n=3):
 
 
 logs = []
-input_dirs=['./data', './mydata']
+input_dirs=['./data' ]
 col_names = ('center', 'left', 'right', 'steering', 'throttle', 'brake', 'speed')
 
 for dir in input_dirs:
@@ -35,8 +35,8 @@ for dir in input_dirs:
 
 
 driving_log = pd.concat(logs, axis=0, ignore_index=True)
-steer_ma = moving_average(np.array(driving_log.steering), n = 8)
-driving_log = driving_log.assign( steer_ma = pd.Series(steer_ma))
+#steer_ma = moving_average(np.array(driving_log.steering), n = 8)
+#driving_log = driving_log.assign( steer_ma = pd.Series(steer_ma))
 train, validation = train_test_split(driving_log, test_size = 0.05)
 
 img_col = 64
@@ -58,7 +58,7 @@ def preprocess(line, steering):
     # as proposed by ViVek Yadav
     # https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.yh93soib0
     ret = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    random_bright = .15+np.random.uniform()
+    random_bright = .25+np.random.uniform()
     ret[:,:,2] =ret[:,:,2]*random_bright
     ret = cv2.cvtColor(ret,cv2.COLOR_HSV2RGB)
     # Random flip
@@ -69,7 +69,7 @@ def preprocess(line, steering):
 
     # Jitter by Vivek Yadaw
     rows, cols, _ = ret.shape
-    transRange = 100
+    transRange = 150
     numPixels = 10
     valPixels = 0.4
     transX = transRange * np.random.uniform() - transRange/2
@@ -190,6 +190,63 @@ def gen_valid(val_set, batch_size = 1):
             y_valid[i] = curr_line['steering']
         yield(X_valid, y_valid)
 
+def vivek_model():
+    input_shape = (64, 64, 3)
+    filter_size = 3
+    pool_size = (2,2)
+    model = Sequential()
+    model.add(Lambda(lambda x: x/255.-0.5,input_shape=input_shape))
+    model.add(Convolution2D(3,1,1,
+                        border_mode='valid',
+                        name='conv0', init='he_normal'))
+    model.add(Convolution2D(32,filter_size,filter_size,
+                        border_mode='valid',
+                        name='conv1', init='he_normal'))
+    model.add(ELU())
+    model.add(Convolution2D(32,filter_size,filter_size,
+                        border_mode='valid',
+                        name='conv2', init='he_normal'))
+    model.add(ELU())
+    model.add(MaxPooling2D(pool_size=pool_size))
+    model.add(Dropout(0.5))
+    model.add(Convolution2D(64,filter_size,filter_size,
+                        border_mode='valid',
+                        name='conv3', init='he_normal'))
+    model.add(ELU())
+
+    model.add(Convolution2D(64,filter_size,filter_size,
+                        border_mode='valid',
+                        name='conv4', init='he_normal'))
+    model.add(ELU())
+    model.add(MaxPooling2D(pool_size=pool_size))
+    model.add(Dropout(0.5))
+    model.add(Convolution2D(128,filter_size,filter_size,
+                        border_mode='valid',
+                        name='conv5', init='he_normal'))
+    model.add(ELU())
+    model.add(Convolution2D(128,filter_size,filter_size,
+                        border_mode='valid',
+                        name='conv6', init='he_normal'))
+    model.add(ELU())
+    model.add(MaxPooling2D(pool_size=pool_size))
+    model.add(Dropout(0.5))
+    model.add(Flatten())
+    model.add(Dense(512,name='hidden1', init='he_normal'))
+    model.add(ELU())
+    model.add(Dropout(0.5))
+    model.add(Dense(64,name='hidden2', init='he_normal'))
+    model.add(ELU())
+    model.add(Dropout(0.5))
+    model.add(Dense(16,name='hidden3',init='he_normal'))
+    model.add(ELU())
+    model.add(Dropout(0.5))
+    model.add(Dense(1, name='output', init='he_normal'))
+    adam = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    model.compile(optimizer=adam, loss = 'mse')
+    return model
+
+
+
 def nvidia_model(img_channels=3, dropout = 0.6):
     img_height = img_row
     img_width = img_col
@@ -233,13 +290,13 @@ def nvidia_model(img_channels=3, dropout = 0.6):
     model.compile(optimizer=optimizer, loss='mse')
     return model
 if __name__ == "__main__":
-    model = nvidia_model()
-    model_name='vivek'
+    model = vivek_model()
+    model_name='vivekfull'
     checkpointer =  ModelCheckpoint(filepath= 'models/' + 
         model_name + "{epoch:02d}-{val_loss:.2f}.hdf5", 
         verbose=1, save_best_only=False)
 
-    model.fit_generator(gen_train(train, batch_size = 128),
+    model.fit_generator(gen_train(train, batch_size = 256),
     samples_per_epoch = 20224,
     nb_epoch = 10,
     validation_data = gen_valid(validation) ,
