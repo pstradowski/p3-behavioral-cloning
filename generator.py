@@ -247,8 +247,6 @@ def vivek_model():
     model.add(ELU())
     model.add(Dropout(0.5))
     model.add(Dense(1, name='output', init='he_normal'))
-    adam = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    model.compile(optimizer=adam, loss = 'mse')
     return model
 
 
@@ -291,12 +289,12 @@ def nvidia_model(img_channels=3, dropout = 0.6):
 
     # logit output - steering angle
     model.add(Dense(1, activation='elu', name='Out'))
-
-    optimizer = Adam(lr=1e-3, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    model.compile(optimizer=optimizer, loss='mse')
     return model
+
 if __name__ == "__main__":
     model = vivek_model()
+    optimizer = Adam(lr=1e-3, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    model.compile(optimizer=optimizer, loss='mse')
     model_name='discriminator'
     checkpointer =  ModelCheckpoint(filepath= 'models/' + 
         model_name + "{epoch:02d}-{val_loss:.2f}.hdf5", 
