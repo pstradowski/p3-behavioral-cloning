@@ -87,33 +87,39 @@ def preprocess(line, steering):
     ret = cv2.resize(ret,(img_col, img_row), interpolation=cv2.INTER_AREA)
     return(ret, steering)
 
-class eq_vivek:
+class discriminator:
     #Tribute to Vivek Yadaw for excellent idea of equalization :-)
     def __init__(self, dataset, ep_size = 20224, zero_width = 0.15):
         self.dataset =  dataset
         self.counter = 1
         self.ep_size = ep_size
         self.zero_width = zero_width
+        self.thresholds = (1, 0.98, 0.95, 0.75, 0.5)
+        
         
     def __next__(self):
         if self.counter < self.ep_size :
             pass_nr = 1
         else:
             pass_nr = ceil(self.counter/self.ep_size)
-        self.threshold = 1/pass_nr
+            
+        if pass_nr <= len(self.thresholds):
+            threshold = self.thresholds[pass_nr -1]
+        else:
+            threshold = 0
+        
         iterate = True
         while iterate:
             idx = np.random.randint(len(self.dataset))
             line = self.dataset.iloc[idx]
             if abs(line['steering']) < self.zero_width:
                 dice = np.random.uniform()
-                if dice > self.threshold:
+                if dice > threshold:
                     iterate = False
             else:
                 iterate = False
         self.counter += 1
-        return line
-        
+        return line   
 
 class equalizer:
     def __init__(self, dataset):
@@ -164,7 +170,7 @@ class randliner:
         return line
 
 def gen_train(train, batch_size=4):
-    feeder = randliner(train)
+    feeder = discriminator(train)
     while 1:
         X_train = np.zeros((batch_size, img_row, img_col, 3))
         y_train = np.zeros(batch_size)
@@ -178,7 +184,7 @@ def gen_train(train, batch_size=4):
 
 def gen_valid(val_set, batch_size = 1):
     
-    feeder = randliner(val_set)
+    feeder = discriminator(val_set)
     while 1:
         X_valid = np.zeros((batch_size, img_row, img_col, 3))
         y_valid = np.zeros(batch_size)
@@ -291,7 +297,7 @@ def nvidia_model(img_channels=3, dropout = 0.6):
     return model
 if __name__ == "__main__":
     model = vivek_model()
-    model_name='viv_no_aug_ud'
+    model_name='discriminator'
     checkpointer =  ModelCheckpoint(filepath= 'models/' + 
         model_name + "{epoch:02d}-{val_loss:.2f}.hdf5", 
         verbose=1, save_best_only=False)
