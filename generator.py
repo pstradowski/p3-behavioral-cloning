@@ -59,8 +59,8 @@ def preprocess(line, steering):
     # as proposed by ViVek Yadav
     # https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.yh93soib0
     ret = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    # random_bright = .25+np.random.uniform()
-    # ret[:,:,2] =ret[:,:,2]*random_bright
+    random_bright = .25+np.random.uniform()
+    ret[:,:,2] =ret[:,:,2]*random_bright
     ret = cv2.cvtColor(ret,cv2.COLOR_HSV2RGB)
     # Random flip
     ind_flip = np.random.randint(2)
@@ -69,15 +69,15 @@ def preprocess(line, steering):
         steering = -steering
 
     # Jitter by Vivek Yadaw
-    # rows, cols, _ = ret.shape
-    # transRange = 150
-    # numPixels = 10
-    # valPixels = 0.4
-    # transX = transRange * np.random.uniform() - transRange/2
-    # steering = steering + transX/transRange * 2 * valPixels
-    # transY = numPixels * np.random.uniform() - numPixels/2
-    # transMat = np.float32([[1, 0, transX], [0, 1, transY]])
-    # ret = cv2.warpAffine(ret, transMat, (cols, rows))
+    rows, cols, _ = ret.shape
+    transRange = 150
+    numPixels = 10
+    valPixels = 0.4
+    transX = transRange * np.random.uniform() - transRange/2
+    steering = steering + transX/transRange * 2 * valPixels
+    transY = numPixels * np.random.uniform() - numPixels/2
+    transMat = np.float32([[1, 0, transX], [0, 1, transY]])
+    ret = cv2.warpAffine(ret, transMat, (cols, rows))
     
   #  Cropping - horizon 50 pixels, hood 10 pixels
  #   No cropping on x-axis
@@ -156,7 +156,7 @@ class uni_eq:
 
 class randliner:
     def __init__(self, dataset, direct_threshold = 0.15):
-        epsilon = 0.4
+        epsilon = 0.35
         self.direct = dataset[abs(dataset.steering) < epsilon]
         self.turns = dataset[abs(dataset.steering) > epsilon]
         self.direct_threshold = direct_threshold
@@ -169,9 +169,17 @@ class randliner:
         idx = np.random.randint(len(direction))
         line = direction.iloc[idx]
         return line
+class just_random:
+    def __init__(self, dataset):
+        self.dataset = dataset
+    def __next__(self):
+        idx = np.random.randint(len(self.dataset))
+        line = self.dataset.iloc[idx]
+        return line
+
 
 def gen_train(train, batch_size=4):
-    feeder = discriminator(train)
+    feeder = just_random(train)
     while 1:
         X_train = np.zeros((batch_size, img_row, img_col, 3))
         y_train = np.zeros(batch_size)
@@ -185,7 +193,7 @@ def gen_train(train, batch_size=4):
 
 def gen_valid(val_set, batch_size = 1):
     
-    feeder = discriminator(val_set)
+    feeder = just_random(val_set)
     while 1:
         X_valid = np.zeros((batch_size, img_row, img_col, 3))
         y_valid = np.zeros(batch_size)
@@ -296,7 +304,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--retrain", help="retrain an existing model ")
     args = parser.parse_args()
-    model_name='viv3_rand_0.15_0.4_lr0.05_r'
+    model_name='viv3_just_aug_lr0.05._r'
     if args.retrain:
         model = load_model(args.retrain)
         print("Retraining model {}".format(args.retrain))
