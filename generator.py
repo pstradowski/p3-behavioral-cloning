@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from sklearn.model_selection import train_test_split
 from matplotlib import pyplot as plt
 import cv2
@@ -11,6 +11,7 @@ import json
 from os import path
 from keras.callbacks import ModelCheckpoint
 from math import ceil
+import argparse
 
 def moving_average(a, n=3):
     # Moving average	
@@ -43,7 +44,7 @@ img_col = 64
 img_row = 64
 
 def preprocess(line, steering):
-    correction = 0.25
+    correction = 0.05
     coin = np.random.randint(0, 3)
     camera = 'center'
     if coin == 1: 
@@ -154,8 +155,8 @@ class uni_eq:
         return line
 
 class randliner:
-    def __init__(self, dataset, direct_threshold = 0.05):
-        epsilon = 0.05
+    def __init__(self, dataset, direct_threshold = 0.15):
+        epsilon = 0.4
         self.direct = dataset[abs(dataset.steering) < epsilon]
         self.turns = dataset[abs(dataset.steering) > epsilon]
         self.direct_threshold = direct_threshold
@@ -292,17 +293,26 @@ def nvidia_model(img_channels=3, dropout = 0.6):
     return model
 
 if __name__ == "__main__":
-    model = vivek_model()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-r", "--retrain", help="retrain an existing model ")
+    args = parser.parse_args()
+    model_name='viv3_rand_0.15_0.4_lr0.05_r'
+    if args.retrain:
+        model = load_model(args.retrain)
+        print("Retraining model {}".format(args.retrain))
+    else:
+        print("Training new model {}".format(model_name))    
+        model = vivek_model()
     optimizer = Adam(lr=1e-3, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
     model.compile(optimizer=optimizer, loss='mse')
-    model_name='discriminator'
+    
     checkpointer =  ModelCheckpoint(filepath= 'models/' + 
         model_name + "{epoch:02d}-{val_loss:.2f}.hdf5", 
         verbose=1, save_best_only=False)
 
     model.fit_generator(gen_train(train, batch_size = 256),
-    samples_per_epoch = 8192,
-    nb_epoch = 10,
+    samples_per_epoch = 16384,
+    nb_epoch = 15,
     validation_data = gen_valid(validation) ,
     nb_val_samples = len(validation),
     callbacks=[checkpointer])
