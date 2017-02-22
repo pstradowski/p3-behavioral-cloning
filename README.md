@@ -101,8 +101,9 @@ I experimented with multiple augmentation techniques:
 * Balance the left and right tuns, I used random filipping
 
 My main image processing pielinepipeline includes following elements:
+
 1. Random selection of left/right/center camera and appropriate steering correction +/- 0.25 
-2. random brightness correctiom
+2. Random brightness correctiom
 3. Random flipping and steering reversing - this part removes skeweness from the data.
 4. Adding shadows to the image
 5. Crop 60 pixels from the top and 20 from the bottom to remove unecessary information and give the network only these part of picture, which contain inforation used to take decision about steering. It was a suprise for me that cropping yields so much improvement for the model.
@@ -110,5 +111,5 @@ My main image processing pielinepipeline includes following elements:
 
 
 #### 4. Summary
-This was most challenging project in theis Nanodegree, mainly to model sensivity to steering samples distribution. Finding the right distribution took me lot of time and combinantion with other model parameters like augmentation made this process more complex. One of mistakes, I made was complex solution at the beginning. Paul Heraty suggested very simple approach, and if I started this way I would find a solution in shorter time. This project showed, that Deep Learning is very empirical - thre is no one receipe to deliver good model and lot of knowledge came from trial and error in simulator.
+This was most challenging project in this Nanodegree, mainly to model sensivity to steering samples distribution. Finding the right distribution took me lot of time and combinantion with other model parameters like augmentation made this process more complex. One of mistakes, I made was complex solution at the beginning. Paul Heraty suggested very simple approach, and if I started this way I would find a solution in shorter time. This project showed, that Deep Learning is very empirical - thre is no one receipe to deliver good model and lot of knowledge came from trial and error in simulator.
 
