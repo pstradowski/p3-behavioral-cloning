@@ -41,11 +41,33 @@ train, validation = train_test_split(driving_log, test_size = 0.05)
 img_col = 64
 img_row = 64
 
+def add_random_shadow(image):
+    top_y = 320*np.random.uniform()
+    top_x = 0
+    bot_x = 160
+    bot_y = 320*np.random.uniform()
+    image_hls = cv2.cvtColor(image,cv2.COLOR_RGB2HLS)
+    shadow_mask = 0*image_hls[:,:,1]
+    X_m = np.mgrid[0:image.shape[0],0:image.shape[1]][0]
+    Y_m = np.mgrid[0:image.shape[0],0:image.shape[1]][1]
+    shadow_mask[((X_m-top_x)*(bot_y-top_y) -(bot_x - top_x)*(Y_m-top_y) >=0)]=1
+    #random_bright = .25+.7*np.random.uniform()
+    if np.random.randint(2)==1:
+        random_bright = .5
+        cond1 = shadow_mask==1
+        cond0 = shadow_mask==0
+        if np.random.randint(2)==1:
+            image_hls[:,:,1][cond1] = image_hls[:,:,1][cond1]*random_bright
+        else:
+            image_hls[:,:,1][cond0] = image_hls[:,:,1][cond0]*random_bright    
+    image = cv2.cvtColor(image_hls,cv2.COLOR_HLS2RGB)
+    return image
+
 def preprocess(line, steering):
 # Main preprocessing and augmentation pipeline
 # Strat with choosing camera
 
-    correction = 0.05
+    correction = 0.25
     coin = np.random.randint(0, 3)
     camera = 'center'
     if coin == 1: 
@@ -60,16 +82,18 @@ def preprocess(line, steering):
     # as proposed by ViVek Yadav
     # https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.yh93soib0
     ret = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    random_bright = .25+np.random.uniform()
-    ret[:,:,2] =ret[:,:,2]*random_bright
+    # random_bright = .25+np.random.uniform()
+    # ret[:,:,2] =ret[:,:,2]*random_bright
     ret = cv2.cvtColor(ret,cv2.COLOR_HSV2RGB)
     # Random flip
     ind_flip = np.random.randint(2)
     if ind_flip==0:
         ret = cv2.flip(ret,1)
         steering = -steering
-
-    # Jitter by Vivek Yadaw
+# Shadows
+    ret = add_random_shadow(ret)
+    
+# Jitter by Vivek Yadaw
     rows, cols, _ = ret.shape
     transRange = 150
     numPixels = 10
@@ -84,7 +108,7 @@ def preprocess(line, steering):
     y_from = 60
     y_to = ret.shape[0]-20
     ret = ret[y_from:y_to]
-
+# Resize
     ret = cv2.resize(ret,(img_col, img_row), interpolation=cv2.INTER_AREA)
     return(ret, steering)
 
@@ -157,7 +181,7 @@ class uni_eq:
 
 class randliner:
     def __init__(self, dataset, direct_threshold = 0.15):
-        epsilon = 0.35
+        epsilon = 0.30
         self.direct = dataset[abs(dataset.steering) < epsilon]
         self.turns = dataset[abs(dataset.steering) > epsilon]
         self.direct_threshold = direct_threshold
@@ -180,7 +204,7 @@ class just_random:
 
 # Kearas generators
 def gen_train(train, batch_size=4):
-    feeder = just_random(train)
+    feeder = randliner(train)
     while 1:
         X_train = np.zeros((batch_size, img_row, img_col, 3))
         y_train = np.zeros(batch_size)
@@ -194,7 +218,7 @@ def gen_train(train, batch_size=4):
 
 def gen_valid(val_set, batch_size = 1):
     
-    feeder = just_random(val_set)
+    feeder = randliner(val_set)
     while 1:
         X_valid = np.zeros((batch_size, img_row, img_col, 3))
         y_valid = np.zeros(batch_size)
@@ -304,7 +328,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--retrain", help="retrain an existing model ")
     args = parser.parse_args()
-    model_name='viv3_just_aug_lr0.05._r'
+    model_name='shadow_retrain_r'
     if args.retrain:
         model = load_model(args.retrain)
         print("Retraining model {}".format(args.retrain))
@@ -315,7 +339,7 @@ if __name__ == "__main__":
     model.compile(optimizer=optimizer, loss='mse')
     
     checkpointer =  ModelCheckpoint(filepath= 'models/' + 
-        model_name + "{epoch:02d}-{val_loss:.2f}.hdf5", 
+        model_name + "{epoch:02d}-{val_loss:.2f}.h5", 
         verbose=1, save_best_only=False)
 
     model.fit_generator(gen_train(train, batch_size = 256),
