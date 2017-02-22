@@ -36,14 +36,15 @@ for dir in input_dirs:
 
 
 driving_log = pd.concat(logs, axis=0, ignore_index=True)
-#steer_ma = moving_average(np.array(driving_log.steering), n = 8)
-#driving_log = driving_log.assign( steer_ma = pd.Series(steer_ma))
 train, validation = train_test_split(driving_log, test_size = 0.05)
 
 img_col = 64
 img_row = 64
 
 def preprocess(line, steering):
+# Main preprocessing and augmentation pipeline
+# Strat with choosing camera
+
     correction = 0.05
     coin = np.random.randint(0, 3)
     camera = 'center'
@@ -79,14 +80,15 @@ def preprocess(line, steering):
     transMat = np.float32([[1, 0, transX], [0, 1, transY]])
     ret = cv2.warpAffine(ret, transMat, (cols, rows))
     
-  #  Cropping - horizon 50 pixels, hood 10 pixels
- #   No cropping on x-axis
+  #  Cropping 
     y_from = 60
     y_to = ret.shape[0]-20
     ret = ret[y_from:y_to]
 
     ret = cv2.resize(ret,(img_col, img_row), interpolation=cv2.INTER_AREA)
     return(ret, steering)
+
+# Feeders for Keras geneators are defined below
 
 class discriminator:
     #Tribute to Vivek Yadaw for excellent idea of equalization :-)
@@ -108,7 +110,6 @@ class discriminator:
             threshold = self.thresholds[pass_nr -1]
         else:
             threshold = 0
-        
         iterate = True
         while iterate:
             idx = np.random.randint(len(self.dataset))
@@ -177,7 +178,7 @@ class just_random:
         line = self.dataset.iloc[idx]
         return line
 
-
+# Kearas generators
 def gen_train(train, batch_size=4):
     feeder = just_random(train)
     while 1:
@@ -259,7 +260,6 @@ def vivek_model():
     return model
 
 
-
 def nvidia_model(img_channels=3, dropout = 0.6):
     img_height = img_row
     img_width = img_col
@@ -325,4 +325,4 @@ if __name__ == "__main__":
     nb_val_samples = len(validation),
     callbacks=[checkpointer])
 
-    model.save('models/' + model_name + ".hdf5")
+    model.save('models/' + model_name + ".h5")
