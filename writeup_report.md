@@ -20,7 +20,10 @@ The goals / steps of this project are the following:
 [image1]: ./images/model.png "Model Visualization"
 [image2]: ./images/histogram.png "Histogram of Udacity dara"
 [image3]: ./images/histogram_nonzero.png "Histogram with zero values removed"
-
+[image4]: ./images/orig.png "Original picture"
+[image5]: ./images/preprocess_0.png "1st preprocessing"
+[image6]: ./images/preprocess_1.png "2nd preprocessing"
+[image7]: ./images/preprocess_2.png "3rd preprocessing"
 
 ---
 ### Files in the repository
@@ -60,7 +63,7 @@ I used 2 data sets: the official one released by Udacity and one recorded by me.
 #### 1. Solution Design Approach
 
 
-My initial goal was an architecture which should be as simple as possible, therefeore I started with comma.ai model, then switched to Nvidia architecture. I tuned both architectures heavily and found Nvidia base better than comma.ai, however this should be double checked.
+My initial goal was an architecture which should be as simple as possible, therefeore I started with comma.ai model, then switched to Nvidia architecture. I tuned both architectures heavily and found Nvidia based one better than comma.ai, however this should be double checked.
 I took into account transfer learning on VGG16 from Image Net, however the first good results turned me to tune another model. 
 
 One of my assumption was to allow for quick trial and error, therefore I needed something which I can train fast using either my laptop or AWS GPU instance.
@@ -94,11 +97,8 @@ After removing zero values, we can observe the distribution shape of the remaini
 
 ![alt text][image3]
 
-The model is trained using Keras generator. The generator uses an object called feeder, which gives the generator the file name and steering for further processing. This gave me possibility to experiment with different shapes of steering angle distribution and tune the learning process.
-
-I experimented with multiple augmentation techniques:
-* Left, right and center camera were choosen randomly
-* Balance the left and right tuns, I used random filipping
+The model is trained using Keras generator. The generator uses an object called feeder, which gives the generator rando, file name and steering for further processing. The random choice is determined by the steering angle to deal with unbalanced data. This gave me possibility to experiment with different shapes of steering angle distribution and tune the learning process.
+random filipping
 
 My main image processing pielinepipeline includes following elements:
 
@@ -108,8 +108,18 @@ My main image processing pielinepipeline includes following elements:
 4. Adding shadows to the image
 5. Crop 60 pixels from the top and 20 from the bottom to remove unecessary information and give the network only these part of picture, which contain inforation used to take decision about steering. It was a suprise for me that cropping yields so much improvement for the model.
 6. Resize to 64x64 pixels
+For more details, see preprocess function in model.py
+Wit such an approach, each time we run preprocessing, we get different image and steering angle - see below for a reult of running preprocess 3 times on the single image:
+![alt text][image4]
+
+![alt text][image5]
+
+![alt text][image6]
+
+![alt text][image7]
+
 
 
 #### 4. Summary
-This was most challenging project in this Nanodegree, mainly to model sensivity to steering samples distribution. Finding the right distribution took me lot of time and combinantion with other model parameters like augmentation made this process more complex. One of mistakes, I made was complex solution at the beginning. Paul Heraty suggested very simple approach, and if I started this way I would find a solution in shorter time. This project showed, that Deep Learning is very empirical - thre is no one receipe to deliver good model and lot of knowledge came from trial and error in simulator.
+This was most challenging project in this Nanodegree, mainly to model sensivity to steering samples distribution. Finding the right distribution took me lot of time and combinantion with other model parameters like augmentation made this process more complex. One of mistakes, I made was complex solution at the beginning. Paul Heraty suggested very simple approach, and if I started this way I would find a solution in shorter time. This project showed, that Deep Learning is very empirical - there is no single receipe to deliver good model and lot of knowledge came from trial and error in simulator.
 
